@@ -179,13 +179,14 @@ function render(){
   }
   if (!SCHOOL){                             // start screen: one card per school + playbooks
     const all = DATA.posts;
-    $('hero').innerHTML = `<div class="title-sec">Choose a school</div><div class="cards">${ORDER().map(slug => {
+    const cards = `<div class="title-sec">Choose a school</div><div class="cards">${ORDER().map(slug => {
       const ps = all.filter(p => p.school === slug); if (!ps.length) return '';
       const k = st => ps.filter(p => statusOf(p.id) === st).length;
       return `<button class="scard" style="--c:${colour(slug)}" onclick="go('${slug}')"><div class="band"></div><div class="in"><div class="nm">${esc(sname(slug))}</div><div class="tag">${esc(BOARDS[slug]||'')}</div>${bar(ps)}<div class="nums"><span><b>${ps.length}</b> ${slug==='hub'?'playbooks':'blogs'}</span><span><b>${k('awaiting')}</b> waiting</span><span><b>${k('approved')}</b> approved</span><span><b>${k('changes')}</b> changes</span></div></div></button>`;
-    }).join('')}</div><div class="title-sec">Everything at a glance</div>`;
+    }).join('')}</div>`;
+    $('hero').innerHTML = '<div class="title-sec">Everything at a glance</div>';
     $('chips').innerHTML = statusChips(all, '#1f2a5c'); $('tabs').innerHTML = '';
-    $('list').innerHTML = FILTER ? `<div class="card grp">${all.filter(p => statusOf(p.id)===FILTER).map(p => rowHtml(p, true)).join('') || '<div class="row" style="cursor:default"><span class="sub">Nothing here.</span></div>'}</div>` : '';
+    $('list').innerHTML = (FILTER ? `<div class="card grp">${all.filter(p => statusOf(p.id)===FILTER).map(p => rowHtml(p, true)).join('') || '<div class="row" style="cursor:default"><span class="sub">Nothing here.</span></div>'}</div>` : '') + cards;
     return;
   }
   const c = colour(SCHOOL), ps = DATA.posts.filter(p => p.school === SCHOOL);
