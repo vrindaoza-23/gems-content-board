@@ -15,12 +15,16 @@ OUT = os.path.join(ROOT, 'state', 'gems-reviews.json')
 
 
 def fetch():
-    url = pipeline.load(os.path.join(ROOT, 'data', 'review-config.json'), {}).get('review_url')
-    if not url:
-        sys.exit('No review_url in data/review-config.json yet.')
+    cfg = pipeline.load(os.path.join(ROOT, 'data', 'review-config.json'), {})
+    if not cfg.get('review_url') or not cfg.get('api_secret'):
+        sys.exit('review_url / api_secret missing in data/review-config.json.')
     # curl, not urllib: python's SSL store fails on this machine
-    raw = subprocess.run(['curl', '-sL', url + '?action=list'], capture_output=True, text=True, check=True).stdout
-    rows = json.loads(raw)['rows']
+    raw = subprocess.run(['curl', '-sL', '-H', 'Content-Type: text/plain', '-d', json.dumps({'op': 'list', 'secret': cfg['api_secret']}),
+                          cfg['review_url']], capture_output=True, text=True, check=True).stdout
+    res = json.loads(raw)
+    if not res.get('ok'):
+        sys.exit('Sheet said: ' + res.get('error', 'error') + ' (is the api_secret in Config!B2?)')
+    rows = res['rows']
     json.dump(rows, open(OUT, 'w'), indent=1, ensure_ascii=False)
     return rows
 

@@ -1,25 +1,27 @@
-# Connect the review site to a Google Sheet (one time, about 5 minutes)
+# GEMS Content Review: setup (signed in as hello@alignd.in)
 
-Do this signed in to Google as **hello@alignd.in**.
+## 1. Update the script (2 minutes)
+1. Open the **GEMS Content Reviews** Sheet and choose **Extensions → Apps Script**.
+2. Select all the code in `Code.gs`, delete it, and paste in the new `review/Code.gs`. Click **Save**.
+3. Click **Deploy → Manage deployments**, then the pencil icon. Set **Version** to **New version**, then click **Deploy**. The URL stays the same.
 
-1. Go to **sheets.new** to create a new Google Sheet. Name it **GEMS Content Reviews**.
-2. In the Sheet, choose **Extensions → Apps Script**.
-3. Delete the code that is already there. Open `review/Code.gs` from this folder, copy all of it, and paste it in. Click **Save** (the disk icon).
-4. Click **Deploy → New deployment**. Click the gear icon next to "Select type" and choose **Web app**.
-   - Description: `GEMS reviews`
-   - Execute as: **Me (hello@alignd.in)**
-   - Who has access: **Anyone**
-   - Click **Deploy**.
-5. Google asks for permission. Click **Authorize access** and choose hello@alignd.in.
-   - If you see "Google hasn't verified this app", click **Advanced**, then **Go to … (unsafe)**. This is your own script, and it's normal for scripts you write yourself.
-   - The permission listed should read **"View and manage spreadsheets that this application has been installed in"**. That means only this one Sheet. Click **Allow**.
-6. Copy the **Web app URL**. It ends in `/exec`. Send it to Claude.
+## 2. Fill the Config tab (1 minute)
+The first time the site is used, the script creates the tabs **Users**, **Reviews**, **Activity** and **Config**. Go to the **Config** tab:
+- **B1** (content_key): paste the content key Claude gave you. It unlocks the posts after login.
+- **B2** (api_secret): paste the API secret Claude gave you. It lets the Content Studio read the reviews.
+Keep both private. Anyone who has the content key and the page can read the drafts.
+
+## 3. Add people (any time)
+In the **Users** tab, add one row per person:
+- **email**: their email address
+- **name**: their name as it should appear on reviews
+- **active**: yes
+Leave the other columns empty. The person opens the site, enters their email, and chooses their own password.
+
+- **Forgotten password:** clear their `pass_hash` cell. They choose a new one at next sign-in.
+- **Remove access:** set `active` to `no`, or delete the row. Their login stops working at once.
+- **History:** everything is in **Activity** (sign-ins, failed sign-ins, password set, sign-outs) and **Reviews** (approvals, change requests, comments, "seen", with the quoted text).
 
 ## What the script can and can't do
-- It can add rows to the "Reviews" tab of this Sheet and read them back. That's all.
-- It can't open any other file, your email or your Drive (`@OnlyCurrentDoc`).
-- It rejects empty or oversized entries, and stops text being read as a spreadsheet formula.
-- Junk rows can be deleted from the Sheet like any other row.
-
-## If step 4 offers only "Anyone within alignd.in"
-Your Google Workspace admin has blocked public web apps. Either ask the admin to allow them, or do these steps from a personal Gmail account and share the Sheet with hello@alignd.in.
+- It reads and writes only this Sheet (`@OnlyCurrentDoc`): no other files, no email.
+- Passwords are stored only as salted SHA-256 hashes. Logins last 6 hours. Six wrong passwords lock that email for 15 minutes.

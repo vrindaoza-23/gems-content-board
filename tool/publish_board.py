@@ -27,6 +27,30 @@ def front(text):
     return meta, m.group(2)
 
 
+CFG = os.path.join(ROOT, 'data', 'review-config.json')
+
+
+def config():
+    # content_key locks the posts (only logged-in reviewers get it); api_secret lets reviews.py read the Sheet.
+    # Both stay on this Mac and in the Sheet's Config tab; neither is pushed to GitHub.
+    cfg = pipeline.load(CFG, {})
+    changed = False
+    for k, n in (('content_key', 32), ('api_secret', 24)):
+        if not cfg.get(k):
+            cfg[k] = os.urandom(n).hex(); changed = True
+    if changed:
+        json.dump(cfg, open(CFG, 'w'), indent=1)
+    return cfg
+
+
+def encrypt(text, key_hex):
+    # AES-256-CBC via openssl; the page decrypts it with WebCrypto after login
+    iv = os.urandom(16).hex()
+    out = subprocess.run(['openssl', 'enc', '-aes-256-cbc', '-K', key_hex, '-iv', iv, '-base64', '-A'],
+                         input=text.encode('utf-8'), capture_output=True, check=True).stdout.decode().strip()
+    return {'iv': iv, 'data': out}
+
+
 def build():
     posts = []
     for p in pipeline.load(pipeline.PIPE, {'posts': []})['posts']:
@@ -40,12 +64,15 @@ def build():
         posts.append({'id': p['id'], 'month': p['month'], 'school': p['school'], 'title': meta.get('h1') or p['title'],
                       'keyword': p['keyword'], 'stage': p['stage'], 'publish_date': meta.get('publish_date', ''),
                       'url': meta.get('url', ''), 'seo_title': meta.get('seo_title', ''),
-                      'meta_description': meta.get('meta_description', ''), 'asks': asks, 'body': body.strip()})
+                      'meta_description': meta.get('meta_description', ''), 'asks': asks, 'body': body.strip(),
+                      'image_notes': meta.get('image_notes', ''),
+                      'updated': time.strftime('%Y-%m-%dT%H:%M:%S', time.gmtime(os.path.getmtime(path))) + 'Z' if path and os.path.isfile(path) else '',
+                      'revision_note': (p.get('notes') or [{}])[-1].get('note', '') if p.get('notes') else ''})
     data = {'updated': time.strftime('%d %b %Y, %H:%M'), 'posts': posts,
             'schools': [{'slug': s['slug'], 'name': s['name']} for s in pipeline.load(os.path.join(ROOT, 'data', 'schools.json'), [])]}
     html = open(os.path.join(ROOT, 'dashboard', 'board.html'), encoding='utf-8').read()
-    html = html.replace('/*DATA*/null', json.dumps(data, ensure_ascii=False).replace('</', '<\\/'))
-    cfg = pipeline.load(os.path.join(ROOT, 'data', 'review-config.json'), {})
+    cfg = config()
+    html = html.replace('/*ENC*/null', json.dumps(encrypt(json.dumps(data, ensure_ascii=False), cfg['content_key'])))
     html = html.replace("/*REVIEW_URL*/''", json.dumps(cfg.get('review_url', '')))
     os.makedirs(SITE, exist_ok=True)
     open(os.path.join(SITE, 'index.html'), 'w', encoding='utf-8').write(html)

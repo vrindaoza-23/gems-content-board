@@ -81,17 +81,38 @@ h2{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--mute
 .mtab.on{background:var(--panel);color:var(--ink);box-shadow:var(--shadow)}
 .row{border-left:4px solid var(--c, transparent)}
 .title-sec{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:18px 0 10px}
+
+/* login, revision, Google preview, inline comments, help, print */
+.login{max-width:420px;margin:8vh auto;padding:26px 26px 22px}
+.login h2{all:unset;display:block;font-size:20px;font-weight:700;color:var(--navy);margin-bottom:4px}
+.login input{width:100%;margin:6px 0 12px}
+.login .err{color:var(--bad);font-size:13px;min-height:18px}
+.revised{background:color-mix(in srgb,#1c7ed6 10%,var(--panel));border-left:4px solid #1c7ed6;border-radius:8px;padding:10px 12px;margin:10px 0;font-size:13px}
+.serp{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:12px 0;font-family:Arial,sans-serif}
+.serp .u{font-size:12.5px;color:#4d5156}.serp .t{font-size:18px;color:#1a0dab;line-height:1.3;margin:3px 0}.serp .d{font-size:13.5px;color:#4d5156}
+.serp .len{font-size:11.5px;color:var(--muted);margin-top:6px}.serp .len b.over{color:var(--bad)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .serp .t{color:#8ab4f8}:root:not([data-theme="light"]) .serp .u,:root:not([data-theme="light"]) .serp .d{color:#bdc1c6}}
+mark.q{background:color-mix(in srgb,#f08c00 30%,transparent);color:inherit;border-radius:3px;cursor:pointer}
+.quote{border-left:3px solid #f08c00;padding:2px 8px;margin:4px 0;color:var(--muted);font-style:italic;font-size:12.5px}
+#selbtn{position:fixed;z-index:40;display:none}
+.help{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin-bottom:14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;font-size:13.5px}
+.help b{color:var(--navy)}
+@media print{header,.wrap,.scrim,.dh .btn,#rev,#selbtn,.serp,.modal,.revised{display:none!important}
+  .drawer{position:static;transform:none;visibility:visible;width:auto;box-shadow:none;border:0}.db{overflow:visible;padding:0}
+  body{background:#fff;color:#000}}
 </style>
 </head>
 <body>
 <header>
-  <div><h1>GEMS Content Review</h1><div class="sub">For the GEMS central team · blogs and Class 1–12 parent playbooks · read, approve, request changes or comment · updated <span id="upd"></span></div></div>
+  <div><h1>GEMS Content Review</h1><div class="sub">For the GEMS central team · blogs and Class 1–12 parent playbooks · updated <span id="upd"></span></div></div>
   <div class="sp"></div>
-  <input type="search" id="q" placeholder="Search all posts">
-  <button class="btn" id="who"></button>
+  <input type="search" id="q" placeholder="Search all posts" style="display:none">
+  <button class="btn" id="who" style="display:none"></button>
 </header>
 <div class="wrap">
+  <div id="loginbox"></div>
   <div id="conn" class="note"></div>
+  <div id="help"></div>
   <div id="hero"></div>
   <div class="chips" id="chips"></div>
   <div id="tabs" class="mtabs"></div>
@@ -100,50 +121,102 @@ h2{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--mute
 
 <div class="scrim" id="scrim"></div>
 <aside class="drawer" id="drawer">
-  <div class="dh"><div style="flex:1"><h3 id="dt"></h3><div class="sub" id="dm"></div></div><button class="btn" id="dc">Close</button></div>
+  <div class="dh"><div style="flex:1"><h3 id="dt"></h3><div class="sub" id="dm"></div></div><button class="btn" onclick="window.print()">Print / PDF</button><button class="btn" id="dc">Close</button></div>
   <div class="db">
+    <div id="revnote"></div>
     <div class="review" id="rev"></div>
+    <div id="serp"></div>
     <div class="md" id="dbody"></div>
   </div>
 </aside>
-
-<div class="modal" id="idm"><div class="card">
-  <h3 style="margin:0 0 6px">Who is reviewing?</h3>
-  <p class="sub" style="margin-top:0">For the GEMS central team. Your name is saved with every approval and comment so the team can see who said what. It is remembered on this device.</p>
-  <label>Your name<input id="idn" maxlength="80"></label>
-  <div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn" id="idx">Cancel</button><button class="btn ok" id="idok">Save</button></div>
-</div></div>
+<button class="btn ok" id="selbtn">💬 Comment on this text</button>
 
 <script>
-const DATA = /*DATA*/null;
+const ENC = /*ENC*/null;
 const REVIEW_URL = /*REVIEW_URL*/'';
+let DATA = null;
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const sname = slug => slug === 'hub' ? 'Class 1–12 parent playbooks' : ((DATA.schools.find(s => s.slug === slug) || {}).name || slug);
 const monthName = m => m === 'playbooks' ? 'Playbooks' : new Date(m + '-01').toLocaleString('en-IN', {month:'long', year:'numeric'});
 const STATES = {
   awaiting: ['Awaiting GEMS review', '#c77d0a'],
+  revised:  ['Revised, ready to re-check', '#1c7ed6'],
   approved: ['Approved by GEMS', '#1f9d6a'],
   changes:  ['Changes requested', '#c8443a'],
 };
-let REVIEWS = [], FILTER = '', openId = null;
-const ls = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch(e) { return null; } };
-let ME = { name: ls('gemsName') || '', school: 'GEMS central team' };
+let REVIEWS = [], FILTER = '', openId = null, QUOTE = '';
+const ls = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch(e) { return null; } };
+let ME = null;   // {token, name, email}
 
-// latest Approved / Changes requested decides the status; comments don't change it
+async function api(body){
+  const r = await (await fetch(REVIEW_URL, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(body)})).json();
+  if (!r.ok && r.error === 'login required'){ logout(true); throw new Error('Your login has expired. Please log in again.'); }
+  return r;
+}
+
+// ---- login: the posts are locked in the page and unlocked with a key the Sheet gives after login
+async function unlock(keyHex){
+  const hex = h => new Uint8Array(h.match(/../g).map(b => parseInt(b, 16)));
+  const key = await crypto.subtle.importKey('raw', hex(keyHex), {name:'AES-CBC'}, false, ['decrypt']);
+  const bytes = Uint8Array.from(atob(ENC.data), c => c.charCodeAt(0));
+  const plain = await crypto.subtle.decrypt({name:'AES-CBC', iv: hex(ENC.iv)}, key, bytes);
+  return JSON.parse(new TextDecoder().decode(plain));
+}
+function loginForm(msg){
+  $('loginbox').innerHTML = `<div class="card login"><h2>Sign in</h2><p class="sub" style="margin-top:0">For the GEMS central team. First time here? Enter your email and choose a password (at least 8 characters).</p>
+    <label>Email<input id="lem" type="email" autocomplete="username" value="${esc(ls('gemsEmail')||'')}"></label>
+    <label>Password<input id="lpw" type="password" autocomplete="current-password"></label>
+    <div class="err" id="lerr">${esc(msg||'')}</div>
+    <button class="btn ok" id="lgo" style="width:100%">Sign in</button></div>`;
+  ['hero','chips','tabs','list','help'].forEach(id => $(id).innerHTML = '');
+  $('q').style.display = $('who').style.display = 'none';
+  $('lgo').onclick = doLogin; $('lpw').onkeydown = e => e.key === 'Enter' && doLogin();
+  $('lem').onchange = async () => { try { const r = await api({op:'check', email:$('lem').value}); if (r.firstTime) $('lerr').textContent = 'Welcome! Choose a password for your account (at least 8 characters).'; } catch(e){} };
+}
+async function doLogin(){
+  const email = $('lem').value.trim(), password = $('lpw').value;
+  if (!email || !password){ $('lerr').textContent = 'Enter your email and password.'; return; }
+  $('lerr').textContent = 'Signing in…';
+  try {
+    const r = await api({op:'login', email, password});
+    if (!r.ok){ $('lerr').textContent = r.error; return; }
+    DATA = await unlock(r.key);
+    ME = {token:r.token, name:r.name, email:r.email};
+    ls('gemsEmail', email); ls('gemsSession', JSON.stringify({...ME, key:r.key, at:Date.now()}));
+    start();
+  } catch(e){ $('lerr').textContent = e.message.includes('decrypt') || e.name === 'OperationError' ? 'The site could not unlock the posts. Ask Vrinda to check the content key in the Config tab.' : e.message; }
+}
+function logout(expired){
+  if (ME && !expired) api({op:'logout', token:ME.token}).catch(() => {});
+  ME = null; DATA = null; REVIEWS = []; ls('gemsSession', null); close(); loginForm(expired ? 'Your login has expired. Please sign in again.' : '');
+}
+async function resume(){
+  try {
+    const s = JSON.parse(ls('gemsSession') || 'null');
+    if (!s || Date.now() - s.at > 6 * 3600 * 1000) return false;
+    DATA = await unlock(s.key); ME = {token:s.token, name:s.name, email:s.email}; return true;
+  } catch(e){ return false; }
+}
+
+// ---- status: the latest decision wins; a post edited after "Changes requested" shows as revised
+function lastDecision(id){
+  return REVIEWS.filter(r => r.post_id === id && (r.action === 'Approved' || r.action === 'Changes requested')).sort((a,b) => String(a.time).localeCompare(String(b.time))).pop();
+}
 function statusOf(id){
-  const d = REVIEWS.filter(r => r.post_id === id && r.action !== 'Comment').sort((a,b) => String(a.time).localeCompare(String(b.time))).pop();
-  return !d ? 'awaiting' : d.action === 'Approved' ? 'approved' : 'changes';
+  const d = lastDecision(id);
+  if (!d) return 'awaiting';
+  if (d.action === 'Approved') return 'approved';
+  const p = DATA.posts.find(x => x.id === id);
+  return p && p.updated && p.updated > d.time ? 'revised' : 'changes';
 }
 const threadOf = id => REVIEWS.filter(r => r.post_id === id).sort((a,b) => String(a.time).localeCompare(String(b.time)));
 const badge = st => `<span class="badge" style="--c:${STATES[st][1]}">${STATES[st][0]}</span>`;
 
 async function loadReviews(){
-  if (!REVIEW_URL){ $('conn').textContent = 'Reviews are not connected yet: approvals and comments can be read here once the review sheet is linked.'; return; }
-  try {
-    const r = await (await fetch(REVIEW_URL + '?action=list', {cache:'no-store'})).json();
-    REVIEWS = r.rows || []; $('conn').textContent = '';
-  } catch(e){ $('conn').textContent = 'Could not load reviews right now. Refresh the page to try again.'; }
+  if (!REVIEW_URL || !ME) return;
+  try { const r = await api({op:'list', token:ME.token}); REVIEWS = r.rows || []; $('conn').textContent = ''; }
+  catch(e){ $('conn').textContent = e.message || 'Could not load reviews right now. Refresh the page to try again.'; }
 }
 
 const PALETTE = {'indirapuram':'#2f6fed','gurugram':'#7a4fd6','kochi-ms':'#0e9384','vikhroli':'#d6409f','kalyan':'#e8590c','raipur':'#8d6e3f','kochi-ma':'#1c7ed6','coimbatore':'#2b8a3e','lucknow':'#c92a2a','jodhpur':'#d9480f','little-gems-kochi':'#f08c00','hub':'#1f2a5c'};
@@ -161,15 +234,21 @@ function statusChips(ps, c){
 function bar(ps){
   const n = ps.length || 1;
   // only approved and changes are coloured; posts still waiting leave the thin grey track showing
-  return `<div class="bar">${['approved','changes'].map(k => `<i style="width:${100*ps.filter(p => statusOf(p.id)===k).length/n}%;background:${STATES[k][1]}"></i>`).join('')}</div>`;
+  return `<div class="bar">${['approved','revised','changes'].map(k => `<i style="width:${100*ps.filter(p => statusOf(p.id)===k).length/n}%;background:${STATES[k][1]}"></i>`).join('')}</div>`;
 }
 function rowHtml(p, showSchool){
   const n = threadOf(p.id).filter(r => r.comment).length;
   return `<div class="row" style="--c:${colour(p.school)}" onclick="openPost('${p.id}')"><span class="t">${esc(p.title)}${showSchool?`<div class="sub" style="font-weight:400">${esc(sname(p.school))}</div>`:''}</span><span class="d">${esc(p.publish_date||'')}</span>${n?`<span class="cm">💬 ${n}</span>`:''}${badge(statusOf(p.id))}</div>`;
 }
+function helpStrip(){
+  if (ls('gemsHelpSeen')) return '';
+  return `<div class="help"><span>👋 <b>How it works:</b> pick a school → open a post → <b>Approve</b>, <b>Request changes</b> or comment. Select any sentence to comment on just that line. Posts we've updated after your feedback show as <b>Revised</b>.</span><span class="sp"></span><button class="btn" onclick="ls('gemsHelpSeen','1');render()">Got it</button></div>`;
+}
 function render(){
+  if (!DATA || !ME) return;
   const q = $('q').value.trim().toLowerCase();
-  $('who').textContent = ME.name ? `Reviewing as ${ME.name}` : 'Set your name';
+  $('who').textContent = `${ME.name} · Sign out`;
+  $('help').innerHTML = helpStrip();
   if (q){                                   // search across everything
     const ps = DATA.posts.filter(p => p.title.toLowerCase().includes(q));
     const shown = ps.filter(p => !FILTER || statusOf(p.id) === FILTER);
@@ -183,7 +262,7 @@ function render(){
     const cards = `<div class="title-sec">Choose a school</div><div class="cards">${ORDER().map(slug => {
       const ps = all.filter(p => p.school === slug); if (!ps.length) return '';
       const k = st => ps.filter(p => statusOf(p.id) === st).length;
-      return `<button class="scard" style="--c:${colour(slug)}" onclick="go('${slug}')"><div class="band"></div><div class="in"><div class="nm">${esc(sname(slug))}</div><div class="tag">${esc(BOARDS[slug]||'')}</div>${bar(ps)}<div class="nums"><span><b>${ps.length}</b> ${slug==='hub'?'playbooks':'blogs'}</span><span><b>${k('awaiting')}</b> waiting</span><span><b>${k('approved')}</b> approved</span><span><b>${k('changes')}</b> changes</span></div></div></button>`;
+      return `<button class="scard" style="--c:${colour(slug)}" onclick="go('${slug}')"><div class="band"></div><div class="in"><div class="nm">${esc(sname(slug))}</div><div class="tag">${esc(BOARDS[slug]||'')}</div>${bar(ps)}<div class="nums"><span><b>${ps.length}</b> ${slug==='hub'?'playbooks':'blogs'}</span><span><b>${k('awaiting')+k('revised')}</b> to review</span><span><b>${k('approved')}</b> approved</span><span><b>${k('changes')}</b> changes</span></div></div></button>`;
     }).join('')}</div>`;
     $('hero').innerHTML = '<div class="title-sec">Everything at a glance</div>';
     $('chips').innerHTML = statusChips(all, '#1f2a5c'); $('tabs').innerHTML = '';
@@ -198,7 +277,20 @@ function render(){
   $('chips').innerHTML = statusChips(inMonth, c);
   const shown = inMonth.filter(p => !FILTER || statusOf(p.id) === FILTER).sort((a,b) => (a.publish_date||'').localeCompare(b.publish_date||'') || a.id.localeCompare(b.id));
   const ms = [...new Set(shown.map(p => p.month))].sort();
-  $('list').innerHTML = ms.map(m => `<div class="card grp">${SCHOOL==='hub'?'':`<div class="sec" style="color:${c};font-weight:700">${esc(monthName(m))}</div>`}${shown.filter(p => p.month===m).map(p => rowHtml(p, false)).join('')}</div>`).join('') || '<p class="sub">Nothing here.</p>';
+  $('list').innerHTML = ms.map(m => {
+    const waiting = shown.filter(p => p.month === m && ['awaiting','revised'].includes(statusOf(p.id)));
+    const label = SCHOOL==='hub' ? 'Playbooks' : monthName(m);
+    return `<div class="card grp"><div class="sec" style="color:${c};font-weight:700;display:flex;align-items:center;gap:10px">${SCHOOL==='hub'?'':esc(monthName(m))}<span class="sp" style="flex:1"></span>${waiting.length ? `<button class="btn" style="font-size:12px;padding:4px 10px" onclick="bulkApprove('${m}')">Approve all ${waiting.length} waiting${SCHOOL==='hub'?'':' in '+esc(label)}</button>` : ''}</div>${shown.filter(p => p.month===m).map(p => rowHtml(p, false)).join('')}</div>`;
+  }).join('') || '<p class="sub">Nothing here.</p>';
+}
+async function bulkApprove(m){
+  const items = DATA.posts.filter(p => p.school === SCHOOL && p.month === m && ['awaiting','revised'].includes(statusOf(p.id)));
+  if (!items.length || !confirm(`Approve all ${items.length} post(s) waiting in ${SCHOOL==='hub' ? 'Playbooks' : sname(SCHOOL) + ', ' + monthName(m)}? Only do this if you have read them.`)) return;
+  try {
+    const r = await api({op:'bulk', token:ME.token, action:'Approved', items: items.map(p => ({post_id:p.id, post_school:sname(p.school), post_title:p.title}))});
+    if (!r.ok) throw new Error(r.error);
+    await loadReviews(); render();
+  } catch(e){ alert('Not saved: ' + e.message); }
 }
 // Links in posts point at the GEMS website. Playbook links open the playbook here; other site-relative links go to gemseducationindia.com.
 function link(text, url){
@@ -226,49 +318,81 @@ function md(src){
     else if (!l.trim()) close(); else { close(); out += `<p>${inline(l)}</p>`; } }
   flush(); close(); return out;
 }
-
+// highlight the sentences reviewers commented on (first match, within one paragraph)
+function markQuotes(html, id){
+  threadOf(id).filter(r => r.quote).forEach(r => {
+    const q = esc(r.quote);
+    const i = html.indexOf(q);
+    if (i >= 0) html = html.slice(0, i) + `<mark class="q" title="${esc(r.reviewer)}: ${esc(r.comment)}">${q}</mark>` + html.slice(i + q.length);
+  });
+  return html;
+}
+function serp(p){
+  if (!p.seo_title && !p.meta_description) return '';
+  const path = (p.url || '').replace(/^https?:\/\/[^/]+/, '').replace(/^\/|\/$/g, '').split('/').filter(Boolean);
+  const site = p.school === 'little-gems-kochi' ? 'littlegemskochi.in' : 'gemseducationindia.com';
+  const t = p.seo_title || p.title, d = p.meta_description || '';
+  return `<div class="serp"><div class="sub" style="margin-bottom:6px;font-family:inherit">How it will look on Google</div><div class="u">${esc(site)}${path.length ? ' › ' + path.map(esc).join(' › ') : ''}</div><div class="t">${esc(t.length > 60 ? t.slice(0,58) + '…' : t)}</div><div class="d">${esc(d.length > 160 ? d.slice(0,157) + '…' : d)}</div>
+    <div class="len">Title <b class="${t.length>60?'over':''}">${t.length}</b>/60 characters · Description <b class="${d.length>160?'over':''}">${d.length}</b>/160${p.image_notes ? ` · Images: ${esc(p.image_notes.slice(0,200))}` : ''}</div></div>`;
+}
 function fillReview(){
+  if (!DATA || !ME || !openId) return;
   const p = DATA.posts.find(x => x.id === openId), st = statusOf(p.id);
-  const thread = threadOf(p.id).map(r => `<div class="msg"><b>${esc(r.reviewer)}</b> <span class="sub">${esc(new Date(r.time).toLocaleString('en-IN'))}</span><br>${r.action!=='Comment'?badge(r.action==='Approved'?'approved':'changes')+' ':''}${esc(r.comment||'')}</div>`).join('');
-  $('rev').innerHTML = `<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><b>GEMS review</b>${badge(st)}<span class="sp"></span><span class="sub">${ME.name ? 'as '+esc(ME.name) : ''}</span></div>
-    <textarea id="txt" maxlength="3000" placeholder="Your comment or the changes you'd like (needed for 'Request changes')"></textarea>
-    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ok" onclick="send('Approved')">Approve</button><button class="btn bad" onclick="send('Changes requested')">Request changes</button><button class="btn" onclick="send('Comment')">Add comment</button><span id="sendmsg" class="sub" style="align-self:center"></span></div>
+  const act = r => r.action === 'Comment' ? '' : r.action === 'Seen' ? '<span class="sub">👀 Seen</span> ' : badge(r.action === 'Approved' ? 'approved' : 'changes') + ' ';
+  const thread = threadOf(p.id).map(r => `<div class="msg"><b>${esc(r.reviewer)}</b> <span class="sub">${esc(new Date(r.time).toLocaleString('en-IN'))}</span><br>${act(r)}${r.quote ? `<div class="quote">“${esc(r.quote)}”</div>` : ''}${esc(r.comment||'')}</div>`).join('');
+  const d = lastDecision(p.id);
+  $('revnote').innerHTML = st === 'revised' ? `<div class="revised"><b>Revised on ${esc(new Date(p.updated).toLocaleDateString('en-IN'))}</b> after ${esc(d.reviewer)} asked for changes${p.revision_note ? `: ${esc(p.revision_note)}` : '.'} Please check it again.</div>` : '';
+  $('rev').innerHTML = `<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><b>GEMS review</b>${badge(st)}<span class="sp" style="flex:1"></span><span class="sub">as ${esc(ME.name)}</span></div>
+    ${QUOTE ? `<div class="quote">Commenting on: “${esc(QUOTE)}” <a href="#" onclick="QUOTE='';fillReview();return false">remove</a></div>` : ''}
+    <textarea id="txt" maxlength="3000" placeholder="Your comment or the changes you'd like (needed for 'Request changes'). Tip: select text in the post to comment on that line."></textarea>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ok" onclick="send('Approved')">Approve</button><button class="btn bad" onclick="send('Changes requested')">Request changes</button><button class="btn" onclick="send('Comment')">Add comment</button><button class="btn" onclick="send('Seen')" title="Mark that you've read it, without approving">👀 Seen</button><span id="sendmsg" class="sub" style="align-self:center"></span></div>
     <div class="thread">${thread || '<div class="sub">No comments yet.</div>'}</div>`;
 }
 function openPost(id){
-  openId = id; const p = DATA.posts.find(x => x.id === id);
+  openId = id; QUOTE = ''; const p = DATA.posts.find(x => x.id === id);
   $('dt').textContent = p.title; $('dm').textContent = `${sname(p.school)} · ${monthName(p.month)}${p.publish_date ? ' · publish ' + p.publish_date : ''}`;
-  $('dbody').innerHTML = p.body ? md(p.body) : '<p class="sub">Not written yet.</p>';
+  $('serp').innerHTML = serp(p);
+  $('dbody').innerHTML = p.body ? markQuotes(md(p.body), id) : '<p class="sub">Not written yet.</p>';
   fillReview(); $('drawer').classList.add('open'); $('scrim').classList.add('open');
+  $('drawer').querySelector('.db').scrollTop = 0;
 }
 async function send(action){
-  if (!REVIEW_URL){ $('sendmsg').textContent = 'Reviews are not connected yet.'; return; }
-  if (!ME.name){ askName(() => send(action)); return; }
-  const text = $('txt').value.trim();
-  if (action !== 'Approved' && !text){ $('sendmsg').textContent = 'Please write your comment first.'; $('txt').focus(); return; }
+  const text = ($('txt') ? $('txt').value : '').trim();
+  if ((action === 'Changes requested' || action === 'Comment') && !text){ $('sendmsg').textContent = 'Please write your comment first.'; $('txt').focus(); return; }
   const p = DATA.posts.find(x => x.id === openId);
   $('sendmsg').textContent = 'Saving…';
   try {
-    const r = await (await fetch(REVIEW_URL, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
-      body: JSON.stringify({post_id:p.id, post_school:sname(p.school), post_title:p.title, reviewer:ME.name, reviewer_school:ME.school, action, comment:text})})).json();
+    const r = await api({op:'review', token:ME.token, post_id:p.id, post_school:sname(p.school), post_title:p.title, action, comment:text, quote:QUOTE});
     if (!r.ok) throw new Error(r.error || 'not saved');
-    await loadReviews(); fillReview(); render(); $('sendmsg').textContent = 'Saved.';
-  } catch(e){ $('sendmsg').textContent = 'Not saved: ' + e.message + '. Please try again.'; }
+    QUOTE = ''; await loadReviews(); fillReview(); render(); $('dbody').innerHTML = markQuotes(md(p.body), p.id); $('sendmsg').textContent = 'Saved.';
+  } catch(e){ if ($('sendmsg')) $('sendmsg').textContent = 'Not saved: ' + e.message; }
 }
-let afterName = null;
-function askName(then){ afterName = then || null; $('idn').value = ME.name; $('idm').classList.add('open'); $('idn').focus(); }
-$('idok').onclick = () => { const n = $('idn').value.trim(); if (!n){ $('idn').focus(); return; }
-  ME = {name:n, school:'GEMS central team'}; ls('gemsName', ME.name);
-  $('idm').classList.remove('open'); render(); if (openId) fillReview(); if (afterName){ const f = afterName; afterName = null; f(); } };
-$('idx').onclick = () => { afterName = null; $('idm').classList.remove('open'); };
-$('who').onclick = () => askName();
+// select text in a post → "Comment on this text"
+document.addEventListener('mouseup', () => setTimeout(selCheck, 10));
+document.addEventListener('touchend', () => setTimeout(selCheck, 300));
+function selCheck(){
+  const sel = window.getSelection ? window.getSelection() : null, b = $('selbtn');
+  if (!sel || sel.isCollapsed || !openId || !$('dbody').contains(sel.anchorNode)){ b.style.display = 'none'; return; }
+  const text = sel.toString().replace(/\s+/g, ' ').trim();
+  if (text.length < 3){ b.style.display = 'none'; return; }
+  const rc = sel.getRangeAt(0).getBoundingClientRect();
+  b.style.left = Math.max(8, Math.min(window.innerWidth - 220, rc.left)) + 'px'; b.style.top = Math.max(8, rc.top - 44) + 'px'; b.style.display = 'block';
+  b.onclick = () => { QUOTE = text.slice(0, 500); b.style.display = 'none'; sel.removeAllRanges(); fillReview(); $('txt').focus(); $('drawer').querySelector('.db').scrollTop = 0; };
+}
 
-const close = () => { $('drawer').classList.remove('open'); $('scrim').classList.remove('open'); openId = null; };
+const close = () => { $('drawer').classList.remove('open'); $('scrim').classList.remove('open'); openId = null; QUOTE = ''; $('selbtn').style.display = 'none'; };
 $('dc').onclick = close; $('scrim').onclick = close; document.addEventListener('keydown', e => e.key === 'Escape' && close());
-$('upd').textContent = DATA.updated;
 $('q').oninput = render;
-render(); loadReviews().then(render);
-setInterval(() => loadReviews().then(() => { render(); if (openId) fillReview(); }), 60000);
+$('who').onclick = () => { if (confirm('Sign out?')) logout(false); };
+async function start(){
+  $('loginbox').innerHTML = ''; $('q').style.display = ''; $('who').style.display = '';
+  $('upd').textContent = DATA.updated; render(); await loadReviews(); render();
+}
+(async () => {
+  if (!REVIEW_URL || !ENC){ $('loginbox').innerHTML = '<p class="note">This site is not connected yet.</p>'; return; }
+  if (await resume()) start(); else loginForm('');
+  setInterval(() => { if (ME) loadReviews().then(() => { render(); if (openId) fillReview(); }); }, 60000);
+})();
 </script>
 </body>
 </html>
