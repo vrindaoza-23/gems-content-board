@@ -8,9 +8,15 @@
  *             To reset someone's password, clear their pass_hash cell. To remove access, set active = no.
  *   Reviews   every approval, change request, comment and "seen"
  *   Activity  every login, failed login, password set and logout
- *   Config    B1 = content key (given by Claude), B2 = API secret for the Content Studio
+ *   Config    optional; the content key and API secret are kept in Script Properties (set once by the Content Studio)
+ *
+ * People create their own account on the sign-in screen if their email is a GEMS / alignd address (see ALLOWED_*).
+ * Anyone else can still be let in by adding their email to the Users tab with active = yes.
  */
 const ACTIONS = ['Approved', 'Changes requested', 'Comment', 'Seen'];
+// Who may create an account from the sign-in screen. Anyone else needs a row in the Users tab.
+const ALLOWED_DOMAINS = ['gemsedu.in', 'gemseducation.com', 'alignd.in'];
+const ALLOWED_EMAILS = [];
 const SESSION_SECONDS = 6 * 60 * 60;   // logins last 6 hours
 const MAX_FAILS = 5, LOCK_SECONDS = 15 * 60;
 const HEADS = {
@@ -77,7 +83,16 @@ function hash_(password, salt) {
 }
 
 function config_(cell) {
-  return String(tab_('Config').getRange(cell).getValue() || '').trim();
+  const props = PropertiesService.getScriptProperties();
+  const v = props.getProperty(cell === 'B1' ? 'CONTENT_KEY' : 'API_SECRET');
+  if (v) return v;
+  const s = SpreadsheetApp.getActive().getSheetByName('Config');
+  return s ? String(s.getRange(cell).getValue() || '').trim() : '';
+}
+
+function allowedToSignUp_(email) {
+  const dom = email.split('@')[1] || '';
+  return ALLOWED_EMAILS.indexOf(email) >= 0 || ALLOWED_DOMAINS.indexOf(dom) >= 0;
 }
 
 function log_(email, name, event, detail) {
@@ -86,6 +101,10 @@ function log_(email, name, event, detail) {
 
 function user_(email) {
   return rows_('Users').find(u => u.email.trim().toLowerCase() === email && /^y/i.test(u.active));
+}
+
+function anyUser_(email) {
+  return rows_('Users').find(u => u.email.trim().toLowerCase() === email);
 }
 
 function session_(token) {
@@ -110,8 +129,38 @@ function doPost(e) {
   finally { lock.releaseLock(); }
 }
 
-function handle_(d) {
+function handle_(d) {   // eslint-disable-line no-param-reassign
   const cache = CacheService.getScriptCache();
+
+  // the Content Studio stores the content key and API secret once; after that they can't be changed from outside
+  if (d.op === 'init') {
+    const props = PropertiesService.getScriptProperties();
+    const k = props.getProperty('CONTENT_KEY'), sec = props.getProperty('API_SECRET');
+    if (k && sec) return (k === d.key && sec === d.secret) ? { ok: true, already: true } : { ok: false, error: 'already set' };
+    if (!/^[a-f0-9]{64}$/.test(String(d.key || '')) || !/^[a-f0-9]{48}$/.test(String(d.secret || ''))) return { ok: false, error: 'bad keys' };
+    props.setProperties({ CONTENT_KEY: d.key, API_SECRET: d.secret });
+    return { ok: true };
+  }
+
+  if (d.op === 'signup') {
+    const email = String(d.email || '').trim().toLowerCase().slice(0, 120);
+    const name = clean_(d.name, 80);
+    const password = String(d.password || '');
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { ok: false, error: 'Enter a valid email address.' };
+    if (!name) return { ok: false, error: 'Enter your name.' };
+    if (password.length < 8) return { ok: false, error: 'Choose a password of at least 8 characters.' };
+    const existing = anyUser_(email);
+    if (existing && existing.pass_hash) return { ok: false, error: 'This email already has an account. Sign in instead.' };
+    if (existing && !/^y/i.test(existing.active)) return { ok: false, error: 'This email does not have access. Ask Vrinda.' };
+    if (!existing && !allowedToSignUp_(email)) { log_(email, name, 'Sign-up refused', 'email domain not allowed'); return { ok: false, error: 'Please use your GEMS or alignd email address.' }; }
+    if (!existing) append_('Users', { email: email, name: name, active: 'yes', created: new Date() });
+    log_(email, name, 'Account created', existing ? 'added by Vrinda' : 'self sign-up');
+    if (existing && !existing.name) {
+      const s = tab_('Users'); const head = s.getRange(1, 1, 1, s.getLastColumn()).getValues()[0].map(String);
+      s.getRange(existing._row, head.indexOf('name') + 1).setValue(name);
+    }
+    d = { op: 'login', email: email, password: password };   // continue as a first login, which saves the password
+  }
 
   if (d.op === 'login') {
     const email = String(d.email || '').trim().toLowerCase().slice(0, 120);
@@ -120,10 +169,11 @@ function handle_(d) {
     const fails = Number(cache.get(failKey) || 0);
     if (fails >= MAX_FAILS) return { ok: false, error: 'Too many attempts. Try again in 15 minutes.' };
     const u = user_(email);
-    if (!u) { cache.put(failKey, String(fails + 1), LOCK_SECONDS); log_(email, '', 'Login refused', 'email not on the Users list or not active'); return { ok: false, error: 'This email does not have access. Ask Vrinda to add you.' }; }
+    if (!u) { cache.put(failKey, String(fails + 1), LOCK_SECONDS); log_(email, '', 'Login refused', 'no account or not active'); return { ok: false, error: 'No account for this email yet. Choose "Create account".' }; }
     const s = tab_('Users');
     if (!u.pass_hash) {                 // first login: the person sets their own password
       if (password.length < 8) return { ok: false, firstTime: true, error: 'Choose a password of at least 8 characters.' };
+      if (d.op !== 'login') return { ok: false, error: 'unexpected' };
       const salt = Utilities.getUuid();
       const head = s.getRange(1, 1, 1, s.getLastColumn()).getValues()[0].map(String);
       s.getRange(u._row, head.indexOf('pass_hash') + 1).setValue(hash_(password, salt));
@@ -141,12 +191,14 @@ function handle_(d) {
     const head = s.getRange(1, 1, 1, s.getLastColumn()).getValues()[0].map(String);
     s.getRange(u._row, head.indexOf('last_login') + 1).setValue(new Date());
     log_(email, u.name, 'Logged in', '');
-    return { ok: true, token: token, name: u.name, email: email, key: config_('B1') };
+    const key = config_('B1');
+    if (!key) return { ok: false, error: 'The site is not set up yet (missing content key). Ask Vrinda.' };
+    return { ok: true, token: token, name: u.name || email, email: email, key: key };
   }
 
-  if (d.op === 'check') {               // has this email set a password yet?
+  if (d.op === 'check') {               // does this email have an account / a password yet?
     const u = user_(String(d.email || '').trim().toLowerCase());
-    return { ok: !!u, firstTime: !!(u && !u.pass_hash) };
+    return { ok: true, exists: !!(u && u.pass_hash), firstTime: !!(u && !u.pass_hash) };
   }
 
   // the Content Studio reads reviews with its own secret

@@ -86,6 +86,21 @@ def build():
     print(f'built site/index.html with {len(posts)} posts')
 
 
+def init_sheet():
+    # hand the content key and API secret to the review Sheet once (it refuses to change them afterwards)
+    cfg = config()
+    if not cfg.get('review_url'):
+        return
+    body = json.dumps({'op': 'init', 'key': cfg['content_key'], 'secret': cfg['api_secret']})
+    raw = subprocess.run(['curl', '-sL', '-H', 'Content-Type: text/plain', '-d', body, cfg['review_url']],
+                         capture_output=True, text=True).stdout
+    try:
+        r = json.loads(raw)
+    except ValueError:
+        print('review Sheet: no answer (check the Apps Script deployment)'); return
+    print('review Sheet keys:', 'ok' if r.get('ok') else r.get('error'))
+
+
 def sh(*cmd):
     return subprocess.run(cmd, cwd=SITE, check=True, capture_output=True, text=True).stdout
 
@@ -106,3 +121,4 @@ if __name__ == '__main__':
     build()
     if '--build' not in sys.argv:
         push()
+        init_sheet()
