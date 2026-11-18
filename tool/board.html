@@ -55,21 +55,46 @@ h2{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--mute
 .modal input{width:100%;margin:6px 0 12px}
 .note{font-size:12.5px;color:var(--warn)}
 @media (max-width:700px){header,.wrap{padding-left:16px;padding-right:16px}.row .d{display:none}}
+
+/* school cards and filters */
+.hero{border-radius:16px;padding:18px 20px;margin-bottom:14px;color:#fff;background:var(--c);display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.hero h2{all:unset;font-size:20px;font-weight:700;display:block}
+.hero .sub{color:rgba(255,255,255,.85)}
+.hero .btn{background:rgba(255,255,255,.18);border-color:rgba(255,255,255,.4);color:#fff}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px;margin-bottom:18px}
+.scard{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden;cursor:pointer;box-shadow:var(--shadow);transition:transform .12s,box-shadow .12s;text-align:left;font:inherit;color:inherit;padding:0}
+.scard:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(20,30,70,.12)}
+.scard .band{height:8px;background:var(--c)}
+.scard .in{padding:14px 16px}
+.scard .nm{font-weight:700;font-size:15px;color:var(--ink)}
+.scard .tag{font-size:12px;color:var(--c);font-weight:600;margin:2px 0 10px}
+.scard .bar{display:flex;height:8px;border-radius:99px;overflow:hidden;background:var(--bg);margin:8px 0}
+.scard .bar i{display:block;height:100%}
+.scard .nums{display:flex;gap:12px;font-size:12px;color:var(--muted);flex-wrap:wrap}
+.scard .nums b{color:var(--ink)}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.chip{border:1px solid var(--line);background:var(--panel);border-radius:99px;padding:7px 14px;cursor:pointer;font:inherit;font-size:13px;display:inline-flex;gap:7px;align-items:center;color:inherit}
+.chip i{width:9px;height:9px;border-radius:50%;background:var(--c)}
+.chip.on{background:var(--c);border-color:var(--c);color:#fff}.chip.on i{background:#fff}
+.mtabs{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+.mtab{border:0;background:transparent;font:inherit;font-weight:600;color:var(--muted);padding:6px 12px;border-radius:8px;cursor:pointer}
+.mtab.on{background:var(--panel);color:var(--ink);box-shadow:var(--shadow)}
+.row{border-left:4px solid var(--c, transparent)}
+.title-sec{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:18px 0 10px}
 </style>
 </head>
 <body>
 <header>
   <div><h1>GEMS Content Review</h1><div class="sub">For the GEMS central team · blogs and Class 1–12 parent playbooks · read, approve, request changes or comment · updated <span id="upd"></span></div></div>
   <div class="sp"></div>
-  <input type="search" id="q" placeholder="Search titles">
-  <select id="school"><option value="">All schools</option></select>
-  <select id="month"></select>
+  <input type="search" id="q" placeholder="Search all posts">
   <button class="btn" id="who"></button>
 </header>
 <div class="wrap">
   <div id="conn" class="note"></div>
-  <div class="stats" id="stats"></div>
-  <h2>Posts</h2>
+  <div id="hero"></div>
+  <div class="chips" id="chips"></div>
+  <div id="tabs" class="mtabs"></div>
   <div id="list"></div>
 </div>
 
@@ -121,31 +146,58 @@ async function loadReviews(){
   } catch(e){ $('conn').textContent = 'Could not load reviews right now. Refresh the page to try again.'; }
 }
 
-function posts(){
-  const m = $('month').value, s = $('school').value, q = $('q').value.trim().toLowerCase();
-  return DATA.posts.filter(p => (!m || p.month === m) && (!s || p.school === s) && (!q || p.title.toLowerCase().includes(q)));
+const PALETTE = {'indirapuram':'#2f6fed','gurugram':'#7a4fd6','kochi-ms':'#0e9384','vikhroli':'#d6409f','kalyan':'#e8590c','raipur':'#8d6e3f','kochi-ma':'#1c7ed6','coimbatore':'#2b8a3e','lucknow':'#c92a2a','jodhpur':'#d9480f','little-gems-kochi':'#f08c00','hub':'#1f2a5c'};
+const colour = slug => PALETTE[slug] || '#5c6385';
+const BOARDS = {'indirapuram':'CBSE · opens April 2027','gurugram':'CBSE','kochi-ms':'CBSE','vikhroli':'ICSE and Cambridge','kalyan':'CBSE and Cambridge','raipur':'CBSE · opens April 2027','kochi-ma':'IB and Cambridge','coimbatore':'CBSE and IB · opens April 2027','lucknow':'CBSE','jodhpur':'CBSE','little-gems-kochi':'Day care, 6 months to 3 years','hub':'Class 1–12 parent guides for all schools'};
+let SCHOOL = '', MONTH = '';
+try { SCHOOL = (location.hash.match(/school=([\w-]+)/) || [])[1] || ''; } catch(e) {}
+const ORDER = () => [...DATA.schools.map(s => s.slug), 'hub'];
+function go(slug){ SCHOOL = slug; MONTH = ''; FILTER = ''; try { history.replaceState(null, '', slug ? '#school=' + slug : '#'); } catch(e) {} render(); window.scrollTo(0, 0); }
+function statusChips(ps, c){
+  const count = st => ps.filter(p => statusOf(p.id) === st).length;
+  return [['', 'All', ps.length, c]].concat(Object.entries(STATES).map(([k,[l,col]]) => [k, l, count(k), col]))
+    .map(([k,l,n,col]) => `<button class="chip ${FILTER===k?'on':''}" style="--c:${col}" onclick="FILTER='${k}';render()"><i></i>${l} <b>${n}</b></button>`).join('');
+}
+function bar(ps){
+  const n = ps.length || 1;
+  return `<div class="bar">${['approved','changes','awaiting'].map(k => `<i style="width:${100*ps.filter(p => statusOf(p.id)===k).length/n}%;background:${STATES[k][1]}"></i>`).join('')}</div>`;
+}
+function rowHtml(p, showSchool){
+  const n = threadOf(p.id).filter(r => r.comment).length;
+  return `<div class="row" style="--c:${colour(p.school)}" onclick="openPost('${p.id}')"><span class="t">${esc(p.title)}${showSchool?`<div class="sub" style="font-weight:400">${esc(sname(p.school))}</div>`:''}</span><span class="d">${esc(p.publish_date||'')}</span>${n?`<span class="cm">💬 ${n}</span>`:''}${badge(statusOf(p.id))}</div>`;
 }
 function render(){
-  const ps = posts();
-  const count = st => ps.filter(p => statusOf(p.id) === st).length;
-  $('stats').innerHTML = [['', ps.length, 'All posts']].concat(Object.entries(STATES).map(([k,[l]]) => [k, count(k), l]))
-    .map(([k,n,l]) => `<div class="card stat ${FILTER===k?'on':''}" onclick="FILTER='${k}';render()"><b>${n}</b><span>${l}</span></div>`).join('');
-  const shown = ps.filter(p => !FILTER || statusOf(p.id) === FILTER);
-  const order = [...DATA.schools.map(s => s.slug), 'hub'];
-  $('list').innerHTML = order.map(slug => {
-    const l = shown.filter(p => p.school === slug).sort((a,b) => (a.publish_date||'').localeCompare(b.publish_date||'') || a.id.localeCompare(b.id));
-    if (!l.length) return '';
-    const months = [...new Set(l.map(p => p.month))].sort();
-    return `<div class="card grp"><h3>${esc(sname(slug))}<span class="sub">${l.length} ${slug==='hub'?'playbook(s)':'blog(s)'}</span></h3>` +
-      months.map(m => (slug==='hub' ? '' : `<div class="sec">${esc(monthName(m))}</div>`) + l.filter(p => p.month===m).map(p => {
-        const n = threadOf(p.id).filter(r => r.comment).length;
-        return `<div class="row" onclick="openPost('${p.id}')"><span class="t">${esc(p.title)}</span><span class="d">${esc(p.publish_date||'')}</span>${n?`<span class="cm">💬 ${n}</span>`:''}${badge(statusOf(p.id))}</div>`;
-      }).join('')).join('') + '</div>';
-  }).join('') || '<p class="sub">Nothing matches.</p>';
+  const q = $('q').value.trim().toLowerCase();
   $('who').textContent = ME.name ? `Reviewing as ${ME.name}` : 'Set your name';
+  if (q){                                   // search across everything
+    const ps = DATA.posts.filter(p => p.title.toLowerCase().includes(q));
+    const shown = ps.filter(p => !FILTER || statusOf(p.id) === FILTER);
+    $('hero').innerHTML = `<div class="title-sec">Search results for “${esc(q)}”</div>`;
+    $('chips').innerHTML = statusChips(ps, '#1f2a5c'); $('tabs').innerHTML = '';
+    $('list').innerHTML = shown.length ? `<div class="card grp">${shown.map(p => rowHtml(p, true)).join('')}</div>` : '<p class="sub">Nothing matches.</p>';
+    return;
+  }
+  if (!SCHOOL){                             // start screen: one card per school + playbooks
+    const all = DATA.posts;
+    $('hero').innerHTML = `<div class="title-sec">Choose a school</div><div class="cards">${ORDER().map(slug => {
+      const ps = all.filter(p => p.school === slug); if (!ps.length) return '';
+      const k = st => ps.filter(p => statusOf(p.id) === st).length;
+      return `<button class="scard" style="--c:${colour(slug)}" onclick="go('${slug}')"><div class="band"></div><div class="in"><div class="nm">${esc(sname(slug))}</div><div class="tag">${esc(BOARDS[slug]||'')}</div>${bar(ps)}<div class="nums"><span><b>${ps.length}</b> ${slug==='hub'?'playbooks':'blogs'}</span><span><b>${k('awaiting')}</b> waiting</span><span><b>${k('approved')}</b> approved</span><span><b>${k('changes')}</b> changes</span></div></div></button>`;
+    }).join('')}</div><div class="title-sec">Everything at a glance</div>`;
+    $('chips').innerHTML = statusChips(all, '#1f2a5c'); $('tabs').innerHTML = '';
+    $('list').innerHTML = FILTER ? `<div class="card grp">${all.filter(p => statusOf(p.id)===FILTER).map(p => rowHtml(p, true)).join('') || '<div class="row" style="cursor:default"><span class="sub">Nothing here.</span></div>'}</div>` : '';
+    return;
+  }
+  const c = colour(SCHOOL), ps = DATA.posts.filter(p => p.school === SCHOOL);
+  const months = [...new Set(ps.map(p => p.month))].sort();
+  $('hero').innerHTML = `<div class="hero" style="--c:${c}"><button class="btn" onclick="go('')">← All schools</button><div><h2>${esc(sname(SCHOOL))}</h2><div class="sub">${esc(BOARDS[SCHOOL]||'')} · ${ps.length} ${SCHOOL==='hub'?'playbooks':'blogs'}</div></div></div>`;
+  $('tabs').innerHTML = months.length > 1 ? [['','All months']].concat(months.map(m => [m, monthName(m)])).map(([m,l]) => `<button class="mtab ${MONTH===m?'on':''}" onclick="MONTH='${m}';render()">${esc(l)}</button>`).join('') : '';
+  const inMonth = ps.filter(p => !MONTH || p.month === MONTH);
+  $('chips').innerHTML = statusChips(inMonth, c);
+  const shown = inMonth.filter(p => !FILTER || statusOf(p.id) === FILTER).sort((a,b) => (a.publish_date||'').localeCompare(b.publish_date||'') || a.id.localeCompare(b.id));
+  const ms = [...new Set(shown.map(p => p.month))].sort();
+  $('list').innerHTML = ms.map(m => `<div class="card grp">${SCHOOL==='hub'?'':`<div class="sec" style="color:${c};font-weight:700">${esc(monthName(m))}</div>`}${shown.filter(p => p.month===m).map(p => rowHtml(p, false)).join('')}</div>`).join('') || '<p class="sub">Nothing here.</p>';
 }
-
-
 // Links in posts point at the GEMS website. Playbook links open the playbook here; other site-relative links go to gemseducationindia.com.
 function link(text, url){
   const pb = url.match(/\/playbooks\/class-(\d+)\/?/);
@@ -212,10 +264,7 @@ $('who').onclick = () => askName();
 const close = () => { $('drawer').classList.remove('open'); $('scrim').classList.remove('open'); openId = null; };
 $('dc').onclick = close; $('scrim').onclick = close; document.addEventListener('keydown', e => e.key === 'Escape' && close());
 $('upd').textContent = DATA.updated;
-$('school').innerHTML += DATA.schools.map(s => `<option value="${s.slug}">${esc(s.name)}</option>`).join('') + '<option value="hub">Class 1–12 playbooks</option>';
-const months = [...new Set(DATA.posts.map(p => p.month))].sort();
-$('month').innerHTML = '<option value="">All months</option>' + months.map(m => `<option value="${m}">${esc(monthName(m))}</option>`).join('');
-$('month').onchange = render; $('school').onchange = render; $('q').oninput = render;
+$('q').oninput = render;
 render(); loadReviews().then(render);
 setInterval(() => loadReviews().then(() => { render(); if (openId) fillReview(); }), 60000);
 </script>
