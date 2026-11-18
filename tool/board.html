@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<title>GEMS Content Review</title>
+<style>
+:root{--bg:#f4f5f9;--panel:#fff;--ink:#1b2140;--muted:#6b7190;--line:#e3e6ef;--navy:#1f2a5c;--accent:#2f6fed;--ok:#1f9d6a;--warn:#c77d0a;--bad:#c8443a;--shadow:0 1px 2px rgba(20,30,70,.06),0 4px 14px rgba(20,30,70,.06)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#11131c;--panel:#1a1d2a;--ink:#e8eaf3;--muted:#9aa0bb;--line:#2a2f42;--navy:#8fa2ff;--accent:#6d9bff;--ok:#3cc28a;--warn:#e3a03a;--bad:#e26a5f;--shadow:0 1px 2px rgba(0,0,0,.3)}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif}
+header{padding:16px 24px;background:var(--panel);border-bottom:1px solid var(--line);display:flex;gap:14px;align-items:center;flex-wrap:wrap;position:sticky;top:0;z-index:5}
+header h1{margin:0;font-size:18px;color:var(--navy)}
+.sub{color:var(--muted);font-size:12px}
+.sp{flex:1}
+select,input,textarea{font:inherit;color:inherit;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:7px 10px}
+input[type=search]{min-width:200px}
+.wrap{max-width:1200px;margin:0 auto;padding:18px 24px 60px}
+h2{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:24px 0 10px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow)}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.stat{padding:14px 16px;cursor:pointer;border:1px solid var(--line)}.stat b{display:block;font-size:24px}.stat span{color:var(--muted);font-size:12px}
+.stat.on{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 25%,transparent)}
+.grp{margin-bottom:14px;overflow:hidden}
+.grp h3{margin:0;padding:11px 16px;font-size:14px;color:var(--navy);border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:baseline;background:color-mix(in srgb,var(--panel) 70%,var(--bg))}
+.sec{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding:8px 16px 4px}
+.row{display:flex;gap:12px;align-items:center;padding:10px 16px;border-top:1px solid var(--line);cursor:pointer}
+.row:hover{background:color-mix(in srgb,var(--accent) 6%,transparent)}
+.row .t{flex:1;font-weight:600}
+.row .d{color:var(--muted);font-size:12px;white-space:nowrap}
+.badge{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;padding:2px 9px;border-radius:99px;white-space:nowrap;border:1px solid var(--c);color:var(--c)}
+.badge::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--c)}
+.cm{font-size:12px;color:var(--muted);white-space:nowrap}
+.drawer{position:fixed;inset:0 0 0 auto;width:min(820px,100%);background:var(--panel);border-left:1px solid var(--line);box-shadow:-10px 0 30px rgba(0,0,0,.15);transform:translateX(100%);visibility:hidden;transition:transform .25s,visibility .25s;z-index:20;display:flex;flex-direction:column}
+.drawer.open{transform:none;visibility:visible}
+.dh{padding:14px 22px;border-bottom:1px solid var(--line);display:flex;gap:12px;align-items:flex-start}
+.dh h3{margin:0 0 4px;font-size:17px}
+.db{flex:1;overflow:auto;padding:4px 28px 30px}
+.btn{border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:7px 14px;cursor:pointer;font:inherit;color:inherit;font-weight:600}
+.btn.ok{background:var(--ok);border-color:var(--ok);color:#fff}.btn.bad{background:var(--bad);border-color:var(--bad);color:#fff}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.review{background:var(--bg);border-radius:10px;padding:14px 16px;margin:16px 0}
+.review textarea{width:100%;min-height:70px;margin:8px 0}
+.thread{margin-top:12px}
+.msg{border-top:1px solid var(--line);padding:9px 0;font-size:13px}
+.msg b{color:var(--navy)}
+.md{font-size:15px;line-height:1.65}
+.md h1{font-size:22px}.md h2{font-size:18px;text-transform:none;letter-spacing:0;color:var(--ink)}.md h3{font-size:15px}
+.md table{border-collapse:collapse;margin:10px 0}.md td,.md th{border:1px solid var(--line);padding:6px 10px;text-align:left}
+.scrim{position:fixed;inset:0;background:rgba(0,0,0,.25);display:none;z-index:15}.scrim.open{display:block}
+.modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:30;background:rgba(0,0,0,.35)}
+.modal.open{display:flex}
+.modal .card{padding:20px 22px;width:min(420px,92vw)}
+.modal input{width:100%;margin:6px 0 12px}
+.note{font-size:12.5px;color:var(--warn)}
+@media (max-width:700px){header,.wrap{padding-left:16px;padding-right:16px}.row .d{display:none}}
+</style>
+</head>
+<body>
+<header>
+  <div><h1>GEMS Content Review</h1><div class="sub">For the GEMS central team · blogs and Class 1–12 parent playbooks · read, approve, request changes or comment · updated <span id="upd"></span></div></div>
+  <div class="sp"></div>
+  <input type="search" id="q" placeholder="Search titles">
+  <select id="school"><option value="">All schools</option></select>
+  <select id="month"></select>
+  <button class="btn" id="who"></button>
+</header>
+<div class="wrap">
+  <div id="conn" class="note"></div>
+  <div class="stats" id="stats"></div>
+  <h2>Posts</h2>
+  <div id="list"></div>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer">
+  <div class="dh"><div style="flex:1"><h3 id="dt"></h3><div class="sub" id="dm"></div></div><button class="btn" id="dc">Close</button></div>
+  <div class="db">
+    <div class="review" id="rev"></div>
+    <div class="md" id="dbody"></div>
+  </div>
+</aside>
+
+<div class="modal" id="idm"><div class="card">
+  <h3 style="margin:0 0 6px">Who is reviewing?</h3>
+  <p class="sub" style="margin-top:0">For the GEMS central team. Your name is saved with every approval and comment so the team can see who said what. It is remembered on this device.</p>
+  <label>Your name<input id="idn" maxlength="80"></label>
+  <div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn" id="idx">Cancel</button><button class="btn ok" id="idok">Save</button></div>
+</div></div>
+
+<script>
+const DATA = /*DATA*/null;
+const REVIEW_URL = /*REVIEW_URL*/'';
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const sname = slug => slug === 'hub' ? 'Class 1–12 parent playbooks' : ((DATA.schools.find(s => s.slug === slug) || {}).name || slug);
+const monthName = m => m === 'playbooks' ? 'Playbooks' : new Date(m + '-01').toLocaleString('en-IN', {month:'long', year:'numeric'});
+const STATES = {
+  awaiting: ['Awaiting GEMS review', '#c77d0a'],
+  approved: ['Approved by GEMS', '#1f9d6a'],
+  changes:  ['Changes requested', '#c8443a'],
+};
+let REVIEWS = [], FILTER = '', openId = null;
+const ls = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch(e) { return null; } };
+let ME = { name: ls('gemsName') || '', school: 'GEMS central team' };
+
+// latest Approved / Changes requested decides the status; comments don't change it
+function statusOf(id){
+  const d = REVIEWS.filter(r => r.post_id === id && r.action !== 'Comment').sort((a,b) => String(a.time).localeCompare(String(b.time))).pop();
+  return !d ? 'awaiting' : d.action === 'Approved' ? 'approved' : 'changes';
+}
+const threadOf = id => REVIEWS.filter(r => r.post_id === id).sort((a,b) => String(a.time).localeCompare(String(b.time)));
+const badge = st => `<span class="badge" style="--c:${STATES[st][1]}">${STATES[st][0]}</span>`;
+
+async function loadReviews(){
+  if (!REVIEW_URL){ $('conn').textContent = 'Reviews are not connected yet: approvals and comments can be read here once the review sheet is linked.'; return; }
+  try {
+    const r = await (await fetch(REVIEW_URL + '?action=list', {cache:'no-store'})).json();
+    REVIEWS = r.rows || []; $('conn').textContent = '';
+  } catch(e){ $('conn').textContent = 'Could not load reviews right now. Refresh the page to try again.'; }
+}
+
+function posts(){
+  const m = $('month').value, s = $('school').value, q = $('q').value.trim().toLowerCase();
+  return DATA.posts.filter(p => (!m || p.month === m) && (!s || p.school === s) && (!q || p.title.toLowerCase().includes(q)));
+}
+function render(){
+  const ps = posts();
+  const count = st => ps.filter(p => statusOf(p.id) === st).length;
+  $('stats').innerHTML = [['', ps.length, 'All posts']].concat(Object.entries(STATES).map(([k,[l]]) => [k, count(k), l]))
+    .map(([k,n,l]) => `<div class="card stat ${FILTER===k?'on':''}" onclick="FILTER='${k}';render()"><b>${n}</b><span>${l}</span></div>`).join('');
+  const shown = ps.filter(p => !FILTER || statusOf(p.id) === FILTER);
+  const order = [...DATA.schools.map(s => s.slug), 'hub'];
+  $('list').innerHTML = order.map(slug => {
+    const l = shown.filter(p => p.school === slug).sort((a,b) => (a.publish_date||'').localeCompare(b.publish_date||'') || a.id.localeCompare(b.id));
+    if (!l.length) return '';
+    const months = [...new Set(l.map(p => p.month))].sort();
+    return `<div class="card grp"><h3>${esc(sname(slug))}<span class="sub">${l.length} ${slug==='hub'?'playbook(s)':'blog(s)'}</span></h3>` +
+      months.map(m => (slug==='hub' ? '' : `<div class="sec">${esc(monthName(m))}</div>`) + l.filter(p => p.month===m).map(p => {
+        const n = threadOf(p.id).filter(r => r.comment).length;
+        return `<div class="row" onclick="openPost('${p.id}')"><span class="t">${esc(p.title)}</span><span class="d">${esc(p.publish_date||'')}</span>${n?`<span class="cm">💬 ${n}</span>`:''}${badge(statusOf(p.id))}</div>`;
+      }).join('')).join('') + '</div>';
+  }).join('') || '<p class="sub">Nothing matches.</p>';
+  $('who').textContent = ME.name ? `Reviewing as ${ME.name}` : 'Set your name';
+}
+
+
+// Links in posts point at the GEMS website. Playbook links open the playbook here; other site-relative links go to gemseducationindia.com.
+function link(text, url){
+  const pb = url.match(/\/playbooks\/class-(\d+)\/?/);
+  if (pb){ const p = DATA.posts.find(x => x.school === 'hub' && new RegExp('\\bClass ' + pb[1] + '\\b').test(x.title));
+    if (p) return `<a href="#" onclick="openPost('${p.id}');return false" title="Opens the playbook here (on the GEMS site it will be at ${esc(url)})">${text}</a>`; }
+  const path = url.replace(/^https?:\/\/[^/]+/, '');
+  const own = DATA.posts.find(x => x.url && x.url.replace(/^https?:\/\/[^/]+/, '') === path);
+  if (own) return `<a href="#" onclick="openPost('${own.id}');return false" title="Opens this post here (on the GEMS site it will be at ${esc(url)})">${text}</a>`;
+  const href = url.startsWith('/') ? 'https://gemseducationindia.com' + url : url;
+  return `<a href="${esc(href)}" target="_blank" rel="noopener nofollow">${text}</a>`;
+}
+function md(src){
+  const inline = s => esc(s).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/\*(.+?)\*/g,'<i>$1</i>').replace(/\[([^\]]+)\]\((https?:[^)]+|\/[^)]*)\)/g,(m,t,u)=>link(t,u));
+  let out = '', list = null, rows = [];
+  const close = () => { if (list){ out += `</${list}>`; list = null; } };
+  const flush = () => { if (!rows.length) return; const cells = rows.filter(r => !/^\s*\|?[\s:|-]+\|?\s*$/.test(r)).map(r => r.trim().replace(/^\||\|$/g,'').split('|').map(c => c.trim()));
+    out += '<table>' + cells.map((r,i) => '<tr>' + r.map(c => i ? `<td>${inline(c)}</td>` : `<th>${inline(c)}</th>`).join('') + '</tr>').join('') + '</table>'; rows = []; };
+  for (const l of src.split('\n')){ let m;
+    if (l.trim().startsWith('|')){ close(); rows.push(l); continue; } flush();
+    if ((m = l.match(/^(#{1,4})\s+(.*)/))){ close(); out += `<h${m[1].length}>${inline(m[2])}</h${m[1].length}>`; }
+    else if ((m = l.match(/^\s*[-*]\s+(.*)/))){ if (list!=='ul'){ close(); out += '<ul>'; list = 'ul'; } out += `<li>${inline(m[1])}</li>`; }
+    else if ((m = l.match(/^\s*\d+[.)]\s+(.*)/))){ if (list!=='ol'){ close(); out += '<ol>'; list = 'ol'; } out += `<li>${inline(m[1])}</li>`; }
+    else if (/^---+\s*$/.test(l)){ close(); out += '<hr>'; }
+    else if (!l.trim()) close(); else { close(); out += `<p>${inline(l)}</p>`; } }
+  flush(); close(); return out;
+}
+
+function fillReview(){
+  const p = DATA.posts.find(x => x.id === openId), st = statusOf(p.id);
+  const thread = threadOf(p.id).map(r => `<div class="msg"><b>${esc(r.reviewer)}</b> <span class="sub">${esc(new Date(r.time).toLocaleString('en-IN'))}</span><br>${r.action!=='Comment'?badge(r.action==='Approved'?'approved':'changes')+' ':''}${esc(r.comment||'')}</div>`).join('');
+  $('rev').innerHTML = `<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><b>GEMS review</b>${badge(st)}<span class="sp"></span><span class="sub">${ME.name ? 'as '+esc(ME.name) : ''}</span></div>
+    <textarea id="txt" maxlength="3000" placeholder="Your comment or the changes you'd like (needed for 'Request changes')"></textarea>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ok" onclick="send('Approved')">Approve</button><button class="btn bad" onclick="send('Changes requested')">Request changes</button><button class="btn" onclick="send('Comment')">Add comment</button><span id="sendmsg" class="sub" style="align-self:center"></span></div>
+    <div class="thread">${thread || '<div class="sub">No comments yet.</div>'}</div>`;
+}
+function openPost(id){
+  openId = id; const p = DATA.posts.find(x => x.id === id);
+  $('dt').textContent = p.title; $('dm').textContent = `${sname(p.school)} · ${monthName(p.month)}${p.publish_date ? ' · publish ' + p.publish_date : ''}`;
+  $('dbody').innerHTML = p.body ? md(p.body) : '<p class="sub">Not written yet.</p>';
+  fillReview(); $('drawer').classList.add('open'); $('scrim').classList.add('open');
+}
+async function send(action){
+  if (!REVIEW_URL){ $('sendmsg').textContent = 'Reviews are not connected yet.'; return; }
+  if (!ME.name){ askName(() => send(action)); return; }
+  const text = $('txt').value.trim();
+  if (action !== 'Approved' && !text){ $('sendmsg').textContent = 'Please write your comment first.'; $('txt').focus(); return; }
+  const p = DATA.posts.find(x => x.id === openId);
+  $('sendmsg').textContent = 'Saving…';
+  try {
+    const r = await (await fetch(REVIEW_URL, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({post_id:p.id, post_school:sname(p.school), post_title:p.title, reviewer:ME.name, reviewer_school:ME.school, action, comment:text})})).json();
+    if (!r.ok) throw new Error(r.error || 'not saved');
+    await loadReviews(); fillReview(); render(); $('sendmsg').textContent = 'Saved.';
+  } catch(e){ $('sendmsg').textContent = 'Not saved: ' + e.message + '. Please try again.'; }
+}
+let afterName = null;
+function askName(then){ afterName = then || null; $('idn').value = ME.name; $('idm').classList.add('open'); $('idn').focus(); }
+$('idok').onclick = () => { const n = $('idn').value.trim(); if (!n){ $('idn').focus(); return; }
+  ME = {name:n, school:'GEMS central team'}; ls('gemsName', ME.name);
+  $('idm').classList.remove('open'); render(); if (openId) fillReview(); if (afterName){ const f = afterName; afterName = null; f(); } };
+$('idx').onclick = () => { afterName = null; $('idm').classList.remove('open'); };
+$('who').onclick = () => askName();
+
+const close = () => { $('drawer').classList.remove('open'); $('scrim').classList.remove('open'); openId = null; };
+$('dc').onclick = close; $('scrim').onclick = close; document.addEventListener('keydown', e => e.key === 'Escape' && close());
+$('upd').textContent = DATA.updated;
+$('school').innerHTML += DATA.schools.map(s => `<option value="${s.slug}">${esc(s.name)}</option>`).join('') + '<option value="hub">Class 1–12 playbooks</option>';
+const months = [...new Set(DATA.posts.map(p => p.month))].sort();
+$('month').innerHTML = '<option value="">All months</option>' + months.map(m => `<option value="${m}">${esc(monthName(m))}</option>`).join('');
+$('month').onchange = render; $('school').onchange = render; $('q').oninput = render;
+render(); loadReviews().then(render);
+setInterval(() => loadReviews().then(() => { render(); if (openId) fillReview(); }), 60000);
+</script>
+</body>
+</html>

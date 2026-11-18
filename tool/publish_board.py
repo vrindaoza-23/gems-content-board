@@ -1,0 +1,81 @@
+#!/usr/bin/env python3
+"""Build the read-only client board (no agent notes, no buttons) and push it to GitHub Pages.
+
+  publish_board.py           build site/ and push
+  publish_board.py --build   build site/ only
+
+Repo: vrindaoza-23/gems-content-board  ->  https://vrindaoza-23.github.io/gems-content-board/
+"""
+import json, os, re, sys, subprocess, time
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SITE = os.path.join(ROOT, 'site')
+REPO = 'vrindaoza-23/gems-content-board'
+TOOL_FILES = ['dashboard/board.html', 'review/Code.gs', 'review/SETUP.md', 'tools/publish_board.py', 'tools/reviews.py', 'review/README.md']
+sys.path.insert(0, os.path.join(ROOT, 'tools'))
+import pipeline
+
+
+def front(text):
+    m = re.match(r'^---\n(.*?)\n---\n(.*)$', text, flags=re.S)
+    if not m:
+        return {}, text
+    meta = {}
+    for line in m.group(1).splitlines():
+        if ':' in line:
+            k, v = line.split(':', 1); meta[k.strip()] = v.strip().strip('"').strip('"')
+    return meta, m.group(2)
+
+
+def build():
+    posts = []
+    for p in pipeline.load(pipeline.PIPE, {'posts': []})['posts']:
+        if p['stage'] in ('topic', 'topic_ok', 'topic_rework', 'drafting'):
+            continue  # reviewers only see written posts
+        meta, body = {}, ''
+        path = os.path.join(ROOT, p['file']) if p.get('file') else ''
+        if path and os.path.isfile(path) and p['stage'] not in ('drafting', 'topic', 'topic_ok', 'topic_rework'):
+            meta, body = front(open(path, encoding='utf-8').read())
+        asks = sorted(set(a.strip() for a in re.findall(r'\[ASK GEMS:\s*([^\]]+)\]', body)))
+        posts.append({'id': p['id'], 'month': p['month'], 'school': p['school'], 'title': meta.get('h1') or p['title'],
+                      'keyword': p['keyword'], 'stage': p['stage'], 'publish_date': meta.get('publish_date', ''),
+                      'url': meta.get('url', ''), 'seo_title': meta.get('seo_title', ''),
+                      'meta_description': meta.get('meta_description', ''), 'asks': asks, 'body': body.strip()})
+    data = {'updated': time.strftime('%d %b %Y, %H:%M'), 'posts': posts,
+            'schools': [{'slug': s['slug'], 'name': s['name']} for s in pipeline.load(os.path.join(ROOT, 'data', 'schools.json'), [])]}
+    html = open(os.path.join(ROOT, 'dashboard', 'board.html'), encoding='utf-8').read()
+    html = html.replace('/*DATA*/null', json.dumps(data, ensure_ascii=False).replace('</', '<\\/'))
+    cfg = pipeline.load(os.path.join(ROOT, 'data', 'review-config.json'), {})
+    html = html.replace("/*REVIEW_URL*/''", json.dumps(cfg.get('review_url', '')))
+    os.makedirs(SITE, exist_ok=True)
+    open(os.path.join(SITE, 'index.html'), 'w', encoding='utf-8').write(html)
+    open(os.path.join(SITE, 'robots.txt'), 'w').write('User-agent: *\nDisallow: /\n')
+    open(os.path.join(SITE, '.nojekyll'), 'w').write('')
+    # keep a copy of the review tool's own code in the repo (no content, no data)
+    import shutil
+    os.makedirs(os.path.join(SITE, 'tool'), exist_ok=True)
+    for src in TOOL_FILES:
+        shutil.copy(os.path.join(ROOT, src), os.path.join(SITE, 'tool', os.path.basename(src)))
+    print(f'built site/index.html with {len(posts)} posts')
+
+
+def sh(*cmd):
+    return subprocess.run(cmd, cwd=SITE, check=True, capture_output=True, text=True).stdout
+
+
+def push():
+    if not os.path.isdir(os.path.join(SITE, '.git')):
+        sh('git', 'init', '-b', 'main')
+        sh('git', 'remote', 'add', 'origin', f'https://github.com/{REPO}.git')
+    sh('git', 'add', '-A')
+    if subprocess.run(['git', 'diff', '--cached', '--quiet'], cwd=SITE).returncode == 0:
+        print('no changes'); return
+    sh('git', 'commit', '-m', f'Board update {time.strftime("%Y-%m-%d %H:%M")}')
+    sh('git', 'push', '-u', 'origin', 'main')
+    print(f'pushed -> https://github.com/{REPO} (Pages link works once the repo is public with Pages on)')
+
+
+if __name__ == '__main__':
+    build()
+    if '--build' not in sys.argv:
+        push()
