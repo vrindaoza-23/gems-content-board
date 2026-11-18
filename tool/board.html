@@ -302,11 +302,14 @@ function render(){
 async function bulkApprove(m){
   const items = DATA.posts.filter(p => p.school === SCHOOL && p.month === m && ['awaiting','revised'].includes(statusOf(p.id)));
   if (!items.length || !confirm(`Approve all ${items.length} post(s) waiting in ${SCHOOL==='hub' ? 'Playbooks' : sname(SCHOOL) + ', ' + monthName(m)}? Only do this if you have read them.`)) return;
+  const now = new Date().toISOString();
+  const rows = items.map(p => ({time:now, post_id:p.id, post_school:sname(p.school), post_title:p.title, reviewer:ME.name, reviewer_email:ME.email, action:'Approved', comment:'', quote:'', _pending:true}));
+  REVIEWS.push(...rows); render();
   try {
     const r = await api({op:'bulk', token:ME.token, action:'Approved', items: items.map(p => ({post_id:p.id, post_school:sname(p.school), post_title:p.title}))});
     if (!r.ok) throw new Error(r.error);
-    await loadReviews(); render();
-  } catch(e){ alert('Not saved: ' + e.message); }
+    rows.forEach(x => delete x._pending); loadReviews().then(render);
+  } catch(e){ REVIEWS = REVIEWS.filter(x => !rows.includes(x)); render(); alert('Not saved: ' + e.message); }
 }
 // Links in posts point at the GEMS website. Playbook links open the playbook here; other site-relative links go to gemseducationindia.com.
 function link(text, url){
@@ -355,7 +358,7 @@ function fillReview(){
   if (!DATA || !ME || !openId) return;
   const p = DATA.posts.find(x => x.id === openId), st = statusOf(p.id);
   const act = r => r.action === 'Comment' ? '' : r.action === 'Seen' ? '<span class="sub">👀 Seen</span> ' : badge(r.action === 'Approved' ? 'approved' : 'changes') + ' ';
-  const thread = threadOf(p.id).map(r => `<div class="msg"><b>${esc(r.reviewer)}</b> <span class="sub">${esc(new Date(r.time).toLocaleString('en-IN'))}</span><br>${act(r)}${r.quote ? `<div class="quote">“${esc(r.quote)}”</div>` : ''}${esc(r.comment||'')}</div>`).join('');
+  const thread = threadOf(p.id).map(r => `<div class="msg"><b>${esc(r.reviewer)}</b> <span class="sub">${esc(new Date(r.time).toLocaleString('en-IN'))}${r._pending ? ' · saving…' : ''}</span><br>${act(r)}${r.quote ? `<div class="quote">“${esc(r.quote)}”</div>` : ''}${esc(r.comment||'')}</div>`).join('');
   const d = lastDecision(p.id);
   $('revnote').innerHTML = st === 'revised' ? `<div class="revised"><b>Revised on ${esc(new Date(p.updated).toLocaleDateString('en-IN'))}</b> after ${esc(d.reviewer)} asked for changes${p.revision_note ? `: ${esc(p.revision_note)}` : '.'} Please check it again.</div>` : '';
   $('rev').innerHTML = `<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><b>GEMS review</b>${badge(st)}<span class="sp" style="flex:1"></span><span class="sub">as ${esc(ME.name)}</span></div>
@@ -375,13 +378,22 @@ function openPost(id){
 async function send(action){
   const text = ($('txt') ? $('txt').value : '').trim();
   if ((action === 'Changes requested' || action === 'Comment') && !text){ $('sendmsg').textContent = 'Please write your comment first.'; $('txt').focus(); return; }
-  const p = DATA.posts.find(x => x.id === openId);
-  $('sendmsg').textContent = 'Saving…';
+  const p = DATA.posts.find(x => x.id === openId), quote = QUOTE;
+  // show it at once; the Sheet save (1–3 s on Google's side) finishes in the background
+  const row = {time:new Date().toISOString(), post_id:p.id, post_school:sname(p.school), post_title:p.title, reviewer:ME.name, reviewer_email:ME.email, action, comment:text, quote, _pending:true};
+  REVIEWS.push(row); QUOTE = '';
+  fillReview(); render(); $('dbody').innerHTML = markQuotes(md(p.body), p.id); $('sendmsg').textContent = 'Saving…';
   try {
-    const r = await api({op:'review', token:ME.token, post_id:p.id, post_school:sname(p.school), post_title:p.title, action, comment:text, quote:QUOTE});
+    const r = await api({op:'review', token:ME.token, post_id:p.id, post_school:row.post_school, post_title:p.title, action, comment:text, quote});
     if (!r.ok) throw new Error(r.error || 'not saved');
-    QUOTE = ''; await loadReviews(); fillReview(); render(); $('dbody').innerHTML = markQuotes(md(p.body), p.id); $('sendmsg').textContent = 'Saved.';
-  } catch(e){ if ($('sendmsg')) $('sendmsg').textContent = 'Not saved: ' + e.message; }
+    delete row._pending;
+    if (openId === p.id && $('sendmsg')) $('sendmsg').textContent = 'Saved ✓';
+    loadReviews().then(() => { render(); if (openId === p.id) fillReview(); });   // quiet refresh, picks up others' reviews
+  } catch(e){
+    REVIEWS = REVIEWS.filter(x => x !== row); render();
+    if (openId === p.id){ fillReview(); $('txt').value = text; QUOTE = quote; $('sendmsg').textContent = 'Not saved: ' + e.message + '. Please try again.'; }
+    else alert('Your review of “' + p.title + '” was not saved: ' + e.message);
+  }
 }
 // select text in a post → "Comment on this text"
 document.addEventListener('mouseup', () => setTimeout(selCheck, 10));
