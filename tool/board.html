@@ -177,7 +177,9 @@ function loginForm(msg){
     <p class="sub" style="text-align:center;margin:12px 0 0">${f ? 'Already have an account? <a href="#" id="lsw">Sign in</a>' : 'First time here? <a href="#" id="lsw">Create account</a>'}</p></div>`;
   ['hero','chips','tabs','list','help'].forEach(id => $(id).innerHTML = '');
   $('q').style.display = $('who').style.display = 'none';
-  $('lgo').onclick = doLogin; $('lpw').onkeydown = e => e.key === 'Enter' && !f && doLogin();
+  $('lgo').onclick = doLogin; // a block body: returning false from an onkeydown handler would cancel every keystroke
+  const enter = e => { if (e.key === 'Enter') doLogin(); };
+  $('lpw').onkeydown = enter; $('lem').onkeydown = enter; if (f) $('lpw2').onkeydown = enter;
   $('lsw').onclick = () => { SIGNUP = !SIGNUP; loginForm(''); return false; };
 }
 async function doLogin(){
