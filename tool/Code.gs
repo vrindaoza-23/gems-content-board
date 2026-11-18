@@ -182,3 +182,8 @@ function handle_(d) {
 
   return { ok: false, error: 'unknown request' };
 }
+
+// Run once from the editor (choose "setup" next to Run, then click Run) to create all four tabs.
+function setup() {
+  Object.keys(HEADS).forEach(tab_);
+}

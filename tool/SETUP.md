@@ -4,9 +4,10 @@
 1. Open the **GEMS Content Reviews** Sheet and choose **Extensions → Apps Script**.
 2. Select all the code in `Code.gs`, delete it, and paste in the new `review/Code.gs`. Click **Save**.
 3. Click **Deploy → Manage deployments**, then the pencil icon. Set **Version** to **New version**, then click **Deploy**. The URL stays the same.
+4. In the bar at the top of the editor, choose **setup** from the function list (next to **Debug**) and click **Run**. This creates the Users, Reviews, Activity and Config tabs. If Google asks for permission, click **Allow**.
 
 ## 2. Fill the Config tab (1 minute)
-The first time the site is used, the script creates the tabs **Users**, **Reviews**, **Activity** and **Config**. Go to the **Config** tab:
+Go to the **Config** tab:
 - **B1** (content_key): paste the content key Claude gave you. It unlocks the posts after login.
 - **B2** (api_secret): paste the API secret Claude gave you. It lets the Content Studio read the reviews.
 Keep both private. Anyone who has the content key and the page can read the drafts.
