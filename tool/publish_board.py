@@ -51,6 +51,24 @@ def encrypt(text, key_hex):
     return {'iv': iv, 'data': out}
 
 
+def lock_images(key_hex):
+    # photos used in posts (data/images/<school>/<drive id>.jpg) are copied to the site encrypted, like the posts,
+    # so only signed-in reviewers can see them; returns {drive id: published path}
+    import glob
+    os.makedirs(os.path.join(SITE, 'img'), exist_ok=True)
+    out = {}
+    for src in glob.glob(os.path.join(ROOT, 'data', 'images', '*', '*.jpg')):
+        fid = os.path.basename(src)[:-4]
+        dst = os.path.join(SITE, 'img', fid + '.bin')
+        iv_file = dst + '.iv'
+        if not (os.path.exists(dst) and os.path.getmtime(dst) >= os.path.getmtime(src)):
+            iv = os.urandom(16).hex()
+            subprocess.run(['openssl', 'enc', '-aes-256-cbc', '-K', key_hex, '-iv', iv, '-in', src, '-out', dst], check=True)
+            open(iv_file, 'w').write(iv)
+        out[fid] = {'path': 'img/' + fid + '.bin', 'iv': open(iv_file).read().strip()}
+    return out
+
+
 def build():
     posts = []
     for p in pipeline.load(pipeline.PIPE, {'posts': []})['posts']:
@@ -72,6 +90,7 @@ def build():
             'schools': [{'slug': s['slug'], 'name': s['name']} for s in pipeline.load(os.path.join(ROOT, 'data', 'schools.json'), [])]}
     html = open(os.path.join(ROOT, 'dashboard', 'board.html'), encoding='utf-8').read()
     cfg = config()
+    data['images'] = lock_images(cfg['content_key'])
     html = html.replace('/*ENC*/null', json.dumps(encrypt(json.dumps(data, ensure_ascii=False), cfg['content_key'])))
     html = html.replace("/*REVIEW_URL*/''", json.dumps(cfg.get('review_url', '')))
     os.makedirs(SITE, exist_ok=True)

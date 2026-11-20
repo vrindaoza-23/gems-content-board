@@ -92,6 +92,7 @@ h2{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--mute
 .serp .u{font-size:12.5px;color:#4d5156}.serp .t{font-size:18px;color:#1a0dab;line-height:1.3;margin:3px 0}.serp .d{font-size:13.5px;color:#4d5156}
 .serp .len{font-size:11.5px;color:var(--muted);margin-top:6px}.serp .len b.over{color:var(--bad)}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .serp .t{color:#8ab4f8}:root:not([data-theme="light"]) .serp .u,:root:not([data-theme="light"]) .serp .d{color:#bdc1c6}}
+figure.pic{margin:16px 0}figure.pic img{width:100%;border-radius:10px;display:block;background:var(--bg)}figure.pic figcaption{font-size:12.5px;color:var(--muted);margin-top:6px}
 mark.q{background:color-mix(in srgb,#f08c00 30%,transparent);color:inherit;border-radius:3px;cursor:pointer}
 .quote{border-left:3px solid #f08c00;padding:2px 8px;margin:4px 0;color:var(--muted);font-style:italic;font-size:12.5px}
 #selbtn{position:fixed;z-index:40;display:none}
@@ -322,6 +323,25 @@ function link(text, url){
   const href = url.startsWith('/') ? 'https://gemseducationindia.com' + url : url;
   return `<a href="${esc(href)}" target="_blank" rel="noopener nofollow">${text}</a>`;
 }
+
+// photos are stored encrypted next to the page; unlock them with the same key as the posts
+const PICS = {};
+async function showPics(){
+  const s = JSON.parse(ls('gemsSession') || 'null'); if (!s) return;
+  const hex = h => new Uint8Array(h.match(/../g).map(b => parseInt(b, 16)));
+  const key = await crypto.subtle.importKey('raw', hex(s.key), {name:'AES-CBC'}, false, ['decrypt']);
+  for (const img of document.querySelectorAll('img[data-enc]')){
+    const fid = img.dataset.enc, loc = DATA.images[fid];
+    try {
+      if (!PICS[fid]){
+        const buf = await (await fetch(loc.path)).arrayBuffer();
+        const plain = await crypto.subtle.decrypt({name:'AES-CBC', iv: hex(loc.iv)}, key, buf);
+        PICS[fid] = URL.createObjectURL(new Blob([plain], {type:'image/jpeg'}));
+      }
+      img.src = PICS[fid]; img.removeAttribute('data-enc');
+    } catch(e){ img.alt = 'Photo could not be loaded: ' + img.alt; }
+  }
+}
 function md(src){
   const inline = s => esc(s).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/\*(.+?)\*/g,'<i>$1</i>').replace(/\[([^\]]+)\]\((https?:[^)]+|\/[^)]*)\)/g,(m,t,u)=>link(t,u));
   let out = '', list = null, rows = [];
@@ -330,7 +350,9 @@ function md(src){
     out += '<table>' + cells.map((r,i) => '<tr>' + r.map(c => i ? `<td>${inline(c)}</td>` : `<th>${inline(c)}</th>`).join('') + '</tr>').join('') + '</table>'; rows = []; };
   for (const l of src.split('\n')){ let m;
     if (l.trim().startsWith('|')){ close(); rows.push(l); continue; } flush();
-    if ((m = l.match(/^(#{1,4})\s+(.*)/))){ close(); out += `<h${m[1].length}>${inline(m[2])}</h${m[1].length}>`; }
+    if ((m = l.match(/^!\[([^\]]*)\]\((https:\/\/[^)\s]+)\)\s*$/))){ close(); const fid = (m[2].match(/[?&]id=([\w-]+)/) || [])[1]; const loc = fid && DATA.images && DATA.images[fid];
+      out += `<figure class="pic"><img ${loc ? `data-enc="${esc(fid)}"` : `src="${esc(m[2])}"`} alt="${esc(m[1])}"><figcaption>${esc(m[1])}</figcaption></figure>`; }
+    else if ((m = l.match(/^(#{1,4})\s+(.*)/))){ close(); out += `<h${m[1].length}>${inline(m[2])}</h${m[1].length}>`; }
     else if ((m = l.match(/^\s*[-*]\s+(.*)/))){ if (list!=='ul'){ close(); out += '<ul>'; list = 'ul'; } out += `<li>${inline(m[1])}</li>`; }
     else if ((m = l.match(/^\s*\d+[.)]\s+(.*)/))){ if (list!=='ol'){ close(); out += '<ol>'; list = 'ol'; } out += `<li>${inline(m[1])}</li>`; }
     else if (/^---+\s*$/.test(l)){ close(); out += '<hr>'; }
@@ -352,7 +374,7 @@ function serp(p){
   const site = p.school === 'little-gems-kochi' ? 'littlegemskochi.in' : 'gemseducationindia.com';
   const t = p.seo_title || p.title, d = p.meta_description || '';
   return `<div class="serp"><div class="sub" style="margin-bottom:6px;font-family:inherit">How it will look on Google</div><div class="u">${esc(site)}${path.length ? ' › ' + path.map(esc).join(' › ') : ''}</div><div class="t">${esc(t.length > 60 ? t.slice(0,58) + '…' : t)}</div><div class="d">${esc(d.length > 160 ? d.slice(0,157) + '…' : d)}</div>
-    <div class="len">Title <b class="${t.length>60?'over':''}">${t.length}</b>/60 characters · Description <b class="${d.length>160?'over':''}">${d.length}</b>/160${p.image_notes ? ` · Images: ${esc(p.image_notes.slice(0,200))}` : ''}</div></div>`;
+    <div class="len">Title <b class="${t.length>60?'over':''}">${t.length}</b>/60 characters · Description <b class="${d.length>160?'over':''}">${d.length}</b>/160${(p.body.match(/^!\[/gm) || []).length ? ` · ${(p.body.match(/^!\[/gm) || []).length} photos in the post` : (p.image_notes ? ` · Images: ${esc(p.image_notes.slice(0,120))}` : '')}</div></div>`;
 }
 function fillReview(){
   if (!DATA || !ME || !openId) return;
@@ -372,7 +394,7 @@ function openPost(id){
   $('dt').textContent = p.title; $('dm').textContent = `${sname(p.school)} · ${monthName(p.month)}${p.publish_date ? ' · publish ' + p.publish_date : ''}`;
   $('serp').innerHTML = serp(p);
   $('dbody').innerHTML = p.body ? markQuotes(md(p.body), id) : '<p class="sub">Not written yet.</p>';
-  fillReview(); $('drawer').classList.add('open'); $('scrim').classList.add('open');
+  fillReview(); $('drawer').classList.add('open'); $('scrim').classList.add('open'); showPics();
   $('drawer').querySelector('.db').scrollTop = 0;
 }
 async function send(action){
@@ -382,7 +404,7 @@ async function send(action){
   // show it at once; the Sheet save (1–3 s on Google's side) finishes in the background
   const row = {time:new Date().toISOString(), post_id:p.id, post_school:sname(p.school), post_title:p.title, reviewer:ME.name, reviewer_email:ME.email, action, comment:text, quote, _pending:true};
   REVIEWS.push(row); QUOTE = '';
-  fillReview(); render(); $('dbody').innerHTML = markQuotes(md(p.body), p.id); $('sendmsg').textContent = 'Saving…';
+  fillReview(); render(); $('dbody').innerHTML = markQuotes(md(p.body), p.id); showPics(); $('sendmsg').textContent = 'Saving…';
   try {
     const r = await api({op:'review', token:ME.token, post_id:p.id, post_school:row.post_school, post_title:p.title, action, comment:text, quote});
     if (!r.ok) throw new Error(r.error || 'not saved');
